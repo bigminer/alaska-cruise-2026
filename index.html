@@ -127,6 +127,12 @@
   /* touch has no hover — reveal the hud whenever the control bar is up */
   body.ui-on #hud { opacity: 1; }
 
+  /* ---------- recording mode (?record=1): a clean, UI-free capture ---------- */
+  body.recording, body.recording * { cursor: none !important; }
+  body.recording #controls, body.recording #hud, body.recording #attribution,
+  body.recording #musicPanel, body.recording #dbg, body.recording #paused {
+    display: none !important; }
+
   /* ---------- control bar ---------- */
   #controls { position: absolute; left: 50%; bottom: var(--ctl-bottom); z-index: 80;
     transform: translateX(-50%); display: flex; align-items: center; gap: 6px;
@@ -398,7 +404,7 @@
   </div>
 
   <div id="musicPanel">
-    <div class="mp-head"><span>Soundtrack <small style="opacity:.35;font-weight:400">v5</small></span><button id="mpClose">✕</button></div>
+    <div class="mp-head"><span>Soundtrack <small style="opacity:.35;font-weight:400">v6</small></span><button id="mpClose">✕</button></div>
     <div class="mp-src">
       <label><input type="radio" name="sndsrc" value="local"> Local files</label>
       <label><input type="radio" name="sndsrc" value="spotify"> Spotify</label>
@@ -586,7 +592,10 @@ $("dbgCopy").addEventListener("click", async () => {
 });
 const coarse = matchMedia("(hover: none) and (pointer: coarse)").matches;
 if (coarse) document.body.classList.add("coarse");
+// ?record=1 → clean capture: once running, no cursor / controls / overlays
+const recordMode = new URLSearchParams(location.search).has("record");
 stage.addEventListener("click", e => {
+  if (document.body.classList.contains("recording")) return; // hands-off capture
   if (e.target.id === "startBtn" || e.target.closest("#controls")
       || e.target.closest("#musicPanel") || e.target.closest("#dbg")
       || e.target.closest("#editor") || e.target.closest("#trimModal")) return;
@@ -610,7 +619,7 @@ function togglePause() {
 /* ---------- control bar ---------- */
 let ctlTimer = null, started = false;
 function showControls() {
-  if (!started) return;
+  if (!started || document.body.classList.contains("recording")) return;
   $("controls").classList.add("show");
   document.body.classList.add("ui-on");
   clearTimeout(ctlTimer);
@@ -679,7 +688,7 @@ function buildLayer(el, slide) {
     return img;
   } else {
     bg.style.backgroundImage = `url("${encodeURI(
-      slide.src.replace("videos_full", "vthumbs").replace(".mp4", ".jpg"))}")`;
+      slide.src.replace(/videos_(web|full)/, "vthumbs").replace(".mp4", ".jpg"))}")`;
     const v = document.createElement("video");
     v.className = "media";
     v.src = slide.src;
@@ -1334,7 +1343,7 @@ const Editor = {
         const img = document.createElement("img");
         img.loading = "lazy";
         img.src = s.type === "photo" ? s.src
-          : s.src.replace("videos_full", "vthumbs").replace(".mp4", ".jpg");
+          : s.src.replace(/videos_(web|full)/, "vthumbs").replace(".mp4", ".jpg");
         d.appendChild(img);
         d.addEventListener("click", () => this.restore(f));
         grid.appendChild(d);
@@ -1350,7 +1359,7 @@ const Editor = {
     const img = document.createElement("img");
     img.loading = "lazy";
     img.src = s.type === "photo" ? s.src
-      : s.src.replace("videos_full", "vthumbs").replace(".mp4", ".jpg");
+      : s.src.replace(/videos_(web|full)/, "vthumbs").replace(".mp4", ".jpg");
     d.appendChild(img);
     if (s.type === "video") {
       const b = document.createElement("span");
@@ -1665,6 +1674,11 @@ $("startBtn").addEventListener("click", async () => {
   $("intro").classList.remove("visible");
   started = true;
   $("controls").classList.add("playing");
+  if (recordMode) {
+    // Begin is the gesture that unlocks audio; from here the capture is clean
+    document.body.classList.add("recording");
+    if (canFullscreen) try { toggleFullscreen(); } catch (e) {}
+  }
   // unlock Spotify audio within this tap gesture (needed on iOS)
   try { await Spot.player?.activateElement?.(); } catch (e) {}
   Music.begin();
