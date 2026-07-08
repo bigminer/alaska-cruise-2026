@@ -398,7 +398,7 @@
   </div>
 
   <div id="musicPanel">
-    <div class="mp-head"><span>Soundtrack <small style="opacity:.35;font-weight:400">v4</small></span><button id="mpClose">✕</button></div>
+    <div class="mp-head"><span>Soundtrack <small style="opacity:.35;font-weight:400">v5</small></span><button id="mpClose">✕</button></div>
     <div class="mp-src">
       <label><input type="radio" name="sndsrc" value="local"> Local files</label>
       <label><input type="radio" name="sndsrc" value="spotify"> Spotify</label>
@@ -1014,7 +1014,24 @@ const Spot = {
     await this.fetchToken({ grant_type: "authorization_code", code,
       redirect_uri: this.redirectUri(),
       code_verifier: localStorage.spotPkce });
-    if (this.token) { this.status("Connected ✓"); this.initPlayer(); }
+    if (this.token) { this.whoami(); this.initPlayer(); }
+  },
+  async whoami() {
+    // shows which account the token belongs to — and detects the classic
+    // dev-mode failure where a non-allowlisted account 403s on every API call
+    try {
+      const r = await fetch("https://api.spotify.com/v1/me",
+        { headers: { Authorization: "Bearer " + await this.getToken() } });
+      if (r.ok) {
+        const u = await r.json();
+        return this.status("Connected as " + (u.display_name || u.id)
+          + (u.product ? " (" + u.product + ")" : "") + " ✓");
+      }
+      if (r.status === 403) return this.status("This Spotify account isn't "
+        + "registered for this app — add its email under User Management in "
+        + "the developer dashboard (developer.spotify.com)");
+      this.status("Connected, but account check returned " + r.status);
+    } catch (e) { this.status("Connected ✓"); }
   },
   async fetchToken(params) {
     try {
@@ -1200,7 +1217,7 @@ document.querySelectorAll('input[name="sndsrc"]').forEach(r => {
   });
 });
 $("musicPanel").classList.toggle("spotify", Spot.active);
-if (Spot.refreshTok && Spot.cid) Spot.status("Connected (saved login)");
+if (Spot.refreshTok && Spot.cid) Spot.whoami();
 Spot.handleRedirect();
 // The ▶ Play button is a genuine user gesture — required on iOS to unlock
 // Spotify audio (activateElement) since the OAuth redirect breaks the chain.
