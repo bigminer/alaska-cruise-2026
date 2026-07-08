@@ -212,7 +212,7 @@
     border-radius: 9px; border: 1px solid rgba(255,255,255,.25);
     background: rgba(255,255,255,.07); color: #fff; font-size: 13px; }
   #spBox input::placeholder { color: rgba(255,255,255,.35); }
-  .sp-row { display: flex; align-items: center; gap: 12px; }
+  .sp-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   #spConnect { padding: 8px 16px; border-radius: 999px; cursor: pointer;
     border: none; background: #1db954; color: #06220f; font-weight: 650;
     font-size: 13px; }
@@ -1072,6 +1072,13 @@ const Spot = {
       e => this.status("Auth error — click Connect again"));
     this.player.addListener("account_error",
       e => this.status("Spotify Premium is required"));
+    this.player.addListener("playback_error",
+      e => this.status("Playback error: " + e.message));
+    // ground truth: only report ♫ once the SDK is actually rendering a track
+    this.player.addListener("player_state_changed", st => {
+      const t = st?.track_window?.current_track;
+      if (t) this.status((st.paused ? "Paused — " : "Playing ♫ ") + t.name);
+    });
     this.player.connect();
   },
   plUri() {
@@ -1091,14 +1098,20 @@ const Spot = {
     const uri = this.plUri();
     if (!uri) return this.status("Paste a playlist link first");
     try {
-      await fetch("https://api.spotify.com/v1/me/player/play?device_id="
+      const r = await fetch("https://api.spotify.com/v1/me/player/play?device_id="
           + this.deviceId, {
         method: "PUT",
         headers: { Authorization: "Bearer " + await this.getToken(),
                    "Content-Type": "application/json" },
         body: JSON.stringify({ context_uri: uri }),
       });
-      this.status("Playing ♫");
+      // fetch only throws on network failure — a 403/404 from the API would
+      // otherwise be reported as success
+      if (r.ok) return this.status("Play sent — starting…");
+      const err = (await r.json().catch(() => null))?.error;
+      this.status("Play failed: " + r.status
+        + (err?.reason ? " " + err.reason : "")
+        + (err?.message ? " — " + err.message : ""));
     } catch (e) { this.status("Couldn't start playback"); }
   },
   targetVol() {
