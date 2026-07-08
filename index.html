@@ -2,11 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Alaska Cruise">
 <title>Alaska Cruise 2026</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚢</text></svg>">
 <style>
-  :root { --fade: 0.8s; }
+  :root { --fade: 0.8s;
+    /* control bar sits above the iOS home indicator / Safari toolbar */
+    --ctl-bottom: max(3.5vh, calc(env(safe-area-inset-bottom) + 12px)); }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; background: #000; overflow: hidden;
     font-family: -apple-system, "Helvetica Neue", Segoe UI, sans-serif; }
@@ -118,14 +124,17 @@
     color: rgba(255,255,255,.65); font-size: 13px; letter-spacing: .05em;
     text-shadow: 0 1px 6px rgba(0,0,0,.8); opacity: 0; transition: opacity .4s; }
   #stage:hover #hud { opacity: 1; }
+  /* touch has no hover — reveal the hud whenever the control bar is up */
+  body.ui-on #hud { opacity: 1; }
 
   /* ---------- control bar ---------- */
-  #controls { position: absolute; left: 50%; bottom: 3.5vh; z-index: 80;
+  #controls { position: absolute; left: 50%; bottom: var(--ctl-bottom); z-index: 80;
     transform: translateX(-50%); display: flex; align-items: center; gap: 6px;
     padding: 10px 18px; border-radius: 999px;
     background: rgba(10,14,20,.72); backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,.14);
-    opacity: 0; pointer-events: none; transition: opacity .35s ease; }
+    border: 1px solid rgba(255,255,255,.14); max-width: 96vw;
+    touch-action: manipulation; opacity: 0; pointer-events: none;
+    transition: opacity .35s ease; }
   #controls.show { opacity: 1; pointer-events: auto; }
   #controls button { display: flex; align-items: center; justify-content: center;
     width: 44px; height: 44px; border: none; border-radius: 50%;
@@ -154,7 +163,7 @@
   #controls.muted #btnMute .icoSound { display: none; }
 
   /* ---------- music panel ---------- */
-  #musicPanel { position: absolute; left: 50%; bottom: calc(3.5vh + 78px);
+  #musicPanel { position: absolute; left: 50%; bottom: calc(var(--ctl-bottom) + 78px);
     transform: translateX(-50%); z-index: 85; width: min(420px, 92vw);
     background: rgba(10,14,20,.88); backdrop-filter: blur(14px);
     border: 1px solid rgba(255,255,255,.16); border-radius: 18px;
@@ -206,6 +215,10 @@
     border: none; background: #1db954; color: #06220f; font-weight: 650;
     font-size: 13px; }
   #spConnect:hover { filter: brightness(1.15); }
+  /* iOS needs a user tap to unlock Spotify audio — shown on touch devices */
+  #spPlay { display: none; padding: 8px 16px; border-radius: 999px; cursor: pointer;
+    border: none; background: #1db954; color: #06220f; font-weight: 650; font-size: 13px; }
+  body.coarse #musicPanel.spotify #spPlay { display: inline-block; }
   #spStatus { font-size: 12.5px; color: rgba(255,255,255,.6); }
 
   /* ---------- edit mode ---------- */
@@ -393,6 +406,7 @@
       <input id="spPl" placeholder="Playlist link (open.spotify.com/playlist/…)" spellcheck="false">
       <div class="sp-row">
         <button id="spConnect">Connect Spotify</button>
+        <button id="spPlay">▶ Play music</button>
         <span id="spStatus">Not connected</span>
       </div>
     </div>
@@ -568,10 +582,17 @@ $("dbgCopy").addEventListener("click", async () => {
     '<svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>';
   setTimeout(() => $("dbgCopy").innerHTML = DBG_COPY_SVG, 1200);
 });
+const coarse = matchMedia("(hover: none) and (pointer: coarse)").matches;
+if (coarse) document.body.classList.add("coarse");
 stage.addEventListener("click", e => {
-  if (e.target.id !== "startBtn" && !e.target.closest("#controls")
-      && !e.target.closest("#musicPanel") && !e.target.closest("#dbg")
-      && !e.target.closest("#editor") && !e.target.closest("#trimModal")) togglePause();
+  if (e.target.id === "startBtn" || e.target.closest("#controls")
+      || e.target.closest("#musicPanel") || e.target.closest("#dbg")
+      || e.target.closest("#editor") || e.target.closest("#trimModal")) return;
+  // touch has no hover/mousemove: a tap toggles the control bar rather than
+  // play/pause (pausing is done from the bar's ▶/⏸ button). Mouse keeps the
+  // original tap-to-pause behavior.
+  if (coarse) $("controls").classList.contains("show") ? hideControls() : showControls();
+  else togglePause();
 });
 function togglePause() {
   paused = !paused;
@@ -589,9 +610,13 @@ let ctlTimer = null, started = false;
 function showControls() {
   if (!started) return;
   $("controls").classList.add("show");
+  document.body.classList.add("ui-on");
   clearTimeout(ctlTimer);
-  if (!paused) ctlTimer = setTimeout(() =>
-    $("controls").classList.remove("show"), 3000);
+  if (!paused) ctlTimer = setTimeout(hideControls, coarse ? 4000 : 3000);
+}
+function hideControls() {
+  $("controls").classList.remove("show");
+  document.body.classList.remove("ui-on");
 }
 stage.addEventListener("mousemove", showControls);
 $("btnChPrev").addEventListener("click", () => chapterSkip(-1));
@@ -600,14 +625,24 @@ $("btnSlPrev").addEventListener("click", () => slideSkip(-1));
 $("btnSlNext").addEventListener("click", () => slideSkip(1));
 $("btnPlay").addEventListener("click", togglePause);
 $("btnMute").addEventListener("click", () => setMuted(!muted));
+const el = document.documentElement;
+const canFullscreen = !!(el.requestFullscreen || el.webkitRequestFullscreen);
 function toggleFullscreen() {
-  const el = document.documentElement;
   if (document.fullscreenElement || document.webkitFullscreenElement) {
     (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-  } else {
+  } else if (canFullscreen) {
     (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  } else {
+    // iOS Safari has no element fullscreen — the best we can do is fullscreen
+    // the currently playing video natively.
+    const v = document.querySelector(".layer.visible video");
+    if (v && v.webkitEnterFullscreen) v.webkitEnterFullscreen();
   }
 }
+// iOS can't fullscreen the page; hide the dead button (home-screen install is
+// the real fullscreen path there, enabled via the web-app meta tags).
+if (!canFullscreen && !("webkitEnterFullscreen" in document.createElement("video")))
+  $("btnFs").style.display = "none";
 $("btnFs").addEventListener("click", toggleFullscreen);
 let looping = localStorage.loop === "1";
 function setLooping(on) {
@@ -1107,6 +1142,15 @@ document.querySelectorAll('input[name="sndsrc"]').forEach(r => {
 $("musicPanel").classList.toggle("spotify", Spot.active);
 if (Spot.refreshTok && Spot.cid) Spot.status("Connected (saved login)");
 Spot.handleRedirect();
+// The ▶ Play button is a genuine user gesture — required on iOS to unlock
+// Spotify audio (activateElement) since the OAuth redirect breaks the chain.
+$("spPlay").addEventListener("click", async () => {
+  Spot.active = true;
+  try { await Spot.player?.activateElement?.(); } catch (e) {}
+  Spot.begin();
+});
+// Pre-create the player for a returning login so it's ready to activate on tap.
+if (Spot.active && Spot.refreshTok && Spot.cid) Spot.initPlayer();
 
 $("btnMusic").addEventListener("click", () =>
   $("musicPanel").classList.toggle("open"));
@@ -1544,6 +1588,8 @@ $("startBtn").addEventListener("click", async () => {
   $("intro").classList.remove("visible");
   started = true;
   $("controls").classList.add("playing");
+  // unlock Spotify audio within this tap gesture (needed on iOS)
+  try { await Spot.player?.activateElement?.(); } catch (e) {}
   Music.begin();
   Spot.begin();
   await sleep(1200);
