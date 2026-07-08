@@ -1,0 +1,91 @@
+{
+  "width": 4096,
+  "height": 5120,
+  "zoom": 7,
+  "tile_x0": 14,
+  "tile_y0": 36,
+  "tile_px": 512,
+  "attribution": "\u00a9 OpenStreetMap contributors \u00a9 CARTO",
+  "points": [
+    {
+      "chapter": 0,
+      "place": "Vancouver, British Columbia",
+      "lat": 49.2939,
+      "lon": -123.2743,
+      "x": 3159,
+      "y": 3993
+    },
+    {
+      "chapter": 1,
+      "place": "At Sea \u2014 Inside Passage",
+      "lat": 53.7897,
+      "lon": -128.9341,
+      "x": 2128,
+      "y": 2675
+    },
+    {
+      "chapter": 2,
+      "place": "Juneau, Alaska",
+      "lat": 58.2855,
+      "lon": -134.5939,
+      "x": 1098,
+      "y": 1208
+    },
+    {
+      "chapter": 3,
+      "place": "Skagway, Alaska",
+      "lat": 59.4807,
+      "lon": -135.2887,
+      "x": 971,
+      "y": 787
+    },
+    {
+      "chapter": 4,
+      "place": "Glacier Bay, Alaska",
+      "lat": 58.3529,
+      "lon": -136.1047,
+      "x": 823,
+      "y": 1185
+    },
+    {
+      "chapter": 5,
+      "place": "Ketchikan, Alaska",
+      "lat": 55.3406,
+      "lon": -131.6464,
+      "x": 1635,
+      "y": 2188
+    },
+    {
+      "chapter": 6,
+      "place": "At Sea \u2014 Inside Passage",
+      "lat": 51.8715,
+      "lon": -126.9634,
+      "x": 2487,
+      "y": 3253
+    },
+    {
+      "chapter": 7,
+      "place": "Marysville, Washington",
+      "lat": 48.4025,
+      "lon": -122.2804,
+      "x": 3340,
+      "y": 4239
+    },
+    {
+      "chapter": 8,
+      "place": "Whidbey Island, Washington",
+      "lat": 48.4077,
+      "lon": -122.6541,
+      "x": 3272,
+      "y": 4238
+    },
+    {
+      "chapter": 9,
+      "place": "Seattle, Washington",
+      "lat": 47.681,
+      "lon": -122.3156,
+      "x": 3333,
+      "y": 4436
+    }
+  ]
+}

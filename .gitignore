@@ -1,0 +1,5 @@
+# macOS
+.DS_Store
+
+# Full-length source transcodes (3.2 GB) — the site uses media/videos_web/ instead
+media/videos_full/
