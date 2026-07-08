@@ -979,6 +979,7 @@ const Spot = {
     "https://open.spotify.com/playlist/2j2Ke641gzYTIAJBEHAmVj",
   token: null, exp: 0, refreshTok: localStorage.spotRefresh || null,
   player: null, deviceId: null, ready: false, begun: false, pendingStart: false,
+  remoteDev: null,
   vol: parseFloat(localStorage.musicVol ?? "0.55"), duckF: 1, rt: null,
 
   status(msg) { $("spStatus").textContent = msg; },
@@ -1093,26 +1094,58 @@ const Spot = {
     if (await this.getToken()) this.initPlayer();
     else this.status("Open the 🎵 panel and connect Spotify");
   },
+  async api(path, method) {
+    return fetch("https://api.spotify.com/v1/me/player" + path, {
+      method: method || "GET",
+      headers: { Authorization: "Bearer " + await this.getToken(),
+                 "Content-Type": "application/json" },
+    });
+  },
+  fmtErr(r, err) {
+    return "Play failed: " + r.status
+      + (err?.reason && err.reason !== "UNKNOWN" ? " " + err.reason : "")
+      + (err?.message ? " — " + err.message : "");
+  },
+  async playOn(deviceId) {
+    return fetch("https://api.spotify.com/v1/me/player/play?device_id=" + deviceId, {
+      method: "PUT",
+      headers: { Authorization: "Bearer " + await this.getToken(),
+                 "Content-Type": "application/json" },
+      body: JSON.stringify({ context_uri: this.plUri() }),
+    });
+  },
   async start() {
     this.pendingStart = false;
-    const uri = this.plUri();
-    if (!uri) return this.status("Paste a playlist link first");
+    if (!this.plUri()) return this.status("Paste a playlist link first");
     try {
-      const r = await fetch("https://api.spotify.com/v1/me/player/play?device_id="
-          + this.deviceId, {
-        method: "PUT",
-        headers: { Authorization: "Bearer " + await this.getToken(),
-                   "Content-Type": "application/json" },
-        body: JSON.stringify({ context_uri: uri }),
-      });
+      const r = await this.playOn(this.deviceId);
       // fetch only throws on network failure — a 403/404 from the API would
       // otherwise be reported as success
-      if (r.ok) return this.status("Play sent — starting…");
+      if (r.ok) { this.remoteDev = null; return this.status("Play sent — starting…"); }
       const err = (await r.json().catch(() => null))?.error;
-      this.status("Play failed: " + r.status
-        + (err?.reason ? " " + err.reason : "")
-        + (err?.message ? " — " + err.message : ""));
+      // iOS Safari's web-SDK device often rejects remote starts (403) —
+      // fall back to Spotify Connect: play through another device, ideally
+      // the Spotify app on this same phone.
+      if (r.status === 403 || r.status === 404) {
+        if (err?.reason === "PREMIUM_REQUIRED")
+          return this.status("Spotify Premium is required on this account");
+        return this.startRemote(this.fmtErr(r, err));
+      }
+      this.status(this.fmtErr(r, err));
     } catch (e) { this.status("Couldn't start playback"); }
+  },
+  async startRemote(webErr) {
+    try {
+      const d = await (await this.api("/devices")).json();
+      const devs = (d.devices || []).filter(v => v.id && v.id !== this.deviceId);
+      const dev = devs.find(v => v.type === "Smartphone") || devs[0];
+      if (!dev) return this.status((webErr || "") +
+        " · Open the Spotify app, tap play on any song, then tap ▶ here again");
+      const r = await this.playOn(dev.id);
+      if (r.ok) { this.remoteDev = dev; return this.status("Playing ♫ via " + dev.name); }
+      const err = (await r.json().catch(() => null))?.error;
+      this.status(this.fmtErr(r, err) + " (on " + dev.name + ")");
+    } catch (e) { this.status(webErr || "Couldn't start playback"); }
   },
   targetVol() {
     return (muted || !this.active) ? 0 : Math.min(1, this.vol * this.duckF);
@@ -1130,11 +1163,18 @@ const Spot = {
   },
   duck(on) { this.duckF = on ? 0.15 : 1; this.rampTo(this.targetVol(), 900); },
   setPaused(p) {
-    if (this.begun && this.player) p ? this.player.pause() : this.player.resume();
+    if (!this.begun) return;
+    if (this.remoteDev)  // Connect mode: control the remote device via API
+      this.api(p ? "/pause" : "/play", "PUT").catch(() => {});
+    else if (this.player) p ? this.player.pause() : this.player.resume();
   },
   applyVol() { clearInterval(this.rt);
     this.player && this.player.setVolume(this.targetVol()); },
-  fadeOutFinal(ms) { this.rampTo(0, ms); },
+  fadeOutFinal(ms) {
+    // can't ramp a remote device's volume — just stop it when the fade ends
+    if (this.remoteDev) setTimeout(() => this.setPaused(true), ms);
+    else this.rampTo(0, ms);
+  },
 };
 
 $("spCid").value = Spot.cid;
