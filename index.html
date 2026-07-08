@@ -398,7 +398,7 @@
   </div>
 
   <div id="musicPanel">
-    <div class="mp-head"><span>Soundtrack</span><button id="mpClose">✕</button></div>
+    <div class="mp-head"><span>Soundtrack <small style="opacity:.35;font-weight:400">v4</small></span><button id="mpClose">✕</button></div>
     <div class="mp-src">
       <label><input type="radio" name="sndsrc" value="local"> Local files</label>
       <label><input type="radio" name="sndsrc" value="spotify"> Spotify</label>
@@ -1136,7 +1136,10 @@ const Spot = {
   },
   async startRemote(webErr) {
     try {
-      const d = await (await this.api("/devices")).json();
+      const r0 = await this.api("/devices");
+      const d = r0.ok ? await r0.json().catch(() => null) : null;
+      if (!d) return this.status((webErr || "Play failed")
+        + " · device list failed: " + r0.status);
       const devs = (d.devices || []).filter(v => v.id && v.id !== this.deviceId);
       const dev = devs.find(v => v.type === "Smartphone") || devs[0];
       if (!dev) return this.status((webErr || "") +
@@ -1145,7 +1148,9 @@ const Spot = {
       if (r.ok) { this.remoteDev = dev; return this.status("Playing ♫ via " + dev.name); }
       const err = (await r.json().catch(() => null))?.error;
       this.status(this.fmtErr(r, err) + " (on " + dev.name + ")");
-    } catch (e) { this.status(webErr || "Couldn't start playback"); }
+    } catch (e) {
+      this.status((webErr || "Play failed") + " · fallback error: " + (e.message || e));
+    }
   },
   targetVol() {
     return (muted || !this.active) ? 0 : Math.min(1, this.vol * this.duckF);
